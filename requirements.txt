@@ -1,0 +1,10 @@
+# for videofy_audio.py:
+fonttools
+Pillow
+litellm
+boto3
+# for transcribe_audio.py: 
+torch
+torchaudio
+whisper-timestamped
+onnxruntime # or use onnxruntime-gpu if available
