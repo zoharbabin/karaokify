@@ -1,13 +1,12 @@
-## 2\. README.md
+# karaokify – Turn Long Audio/Video into Karaoke-Style Highlights Videos
 
-# karaokify – Turn Long Audio into Karaoke-Style Highlights Videos
-
-This project allows you to automatically generate a refined, **karaoke-style** video from an audio file. It highlights textual segments, crossfades audio clips, overlays waveforms, and burns subtitles into a final MP4 video. The process is ideal for creating highlight reels of podcasts, interviews, or any long-form audio.
+This project allows you to automatically generate a refined, **karaoke-style** video from either a video file or an audio file. It highlights textual segments, crossfades audio clips, overlays waveforms, and burns subtitles into a final MP4 video. The process is ideal for creating highlight reels of podcasts, interviews, lectures, or any long-form audio/video content.
 
 ---
 
 ## Features
 
+- **Flexible Input**: Accept either a video file (which provides both audio and background) or separate audio and background files.
 - **Highlight Extractor**: Uses an LLM (via [litellm](https://pypi.org/project/litellm/)) to intelligently select key segments from a transcript.
 - **Crossfade**: Smoothly transitions between highlight segments in the audio.
 - **Waveform Overlay**: Generates a colorized waveform with an optional shadow or offset effect.
@@ -31,7 +30,7 @@ This project allows you to automatically generate a refined, **karaoke-style** v
    - `transcribe.py` (Whisper-based audio transcription).
    
 3. **Set up LLM credentials**  
-   - The script uses `litellm` to call LLM endpoints (e.g., Claude, GPT). Check [litellm’s docs](https://pypi.org/project/litellm/) for details on configuring your model keys/tokens if needed for highlight extraction.
+   - The script uses `litellm` to call LLM endpoints (e.g., Claude, GPT). Check [litellm's docs](https://pypi.org/project/litellm/) for details on configuring your model keys/tokens if needed for highlight extraction.
    - Configure the model you wish to use in `LITELLM_MODEL_STRING` from the [supported litellm models](https://docs.litellm.ai/docs/providers).
    - If you're using an AWS Bedrock model, make sure to configure the AWS boto3 env vars too.
 
@@ -42,7 +41,7 @@ This project allows you to automatically generate a refined, **karaoke-style** v
 ## Generating the Transcript
 
 ### `transcribe.py`
-We’ve included a script `transcribe.py` that uses the [whisper-timestamped](https://github.com/linto-ai/whisper-timestamped) library (a modified version of OpenAI’s Whisper) to create a JSON transcript from an input audio file. The generated transcript is directly compatible with `karaokify.py`.
+We've included a script `transcribe.py` that uses the [whisper-timestamped](https://github.com/linto-ai/whisper-timestamped) library (a modified version of OpenAI's Whisper) to create a JSON transcript from an input audio file. The generated transcript is directly compatible with `karaokify.py`.
 
 Example usage:
 ```bash
@@ -84,8 +83,9 @@ If you have your **own** transcription pipeline, ensure it outputs a similar JSO
 ## Generating the Karaoke-Style Video
 
 ### `karaokify.py`
-After you have a `transcript.json` file (either from `transcribe.py` or another process), you can generate the karaoke-style video. For example:
+After you have a `transcript.json` file (either from `transcribe.py` or another process), you can generate the karaoke-style video. You can use either a video file as input or separate audio and background files:
 
+Using separate audio and background files:
 ```bash
 python karaokify.py \
     --audio=my_podcast.mp3 \
@@ -95,7 +95,17 @@ python karaokify.py \
     --title="My Podcast"
 ```
 
+Or using a video file as input:
+```bash
+python karaokify.py \
+    --video_input=my_lecture.mp4 \
+    --transcript=transcript_cleaned.json \
+    --output=final_video.mp4 \
+    --title="My Lecture"
+```
+
 **Common Arguments**:
+- `--video_input`: Path to a video file that contains both audio and video (overrides --audio and --background).
 - `--audio`: Path to the audio file (e.g., `.mp3`, `.wav`).  
 - `--transcript`: Path to the JSON transcript file.  
 - `--background`: Path to a background image or video (`.png`, `.jpg`, `.mp4`).  
@@ -118,6 +128,7 @@ python karaokify.py --help
 
 If you only want a short highlight reel (e.g., 90 seconds total), you can specify:
 
+Using separate audio and background:
 ```bash
 python karaokify.py \
     --audio=my_podcast.mp3 \
@@ -129,11 +140,22 @@ python karaokify.py \
     --title="My Podcast – 90s Reel"
 ```
 
+Or with a video input:
+```bash
+python karaokify.py \
+    --video_input=my_lecture.mp4 \
+    --transcript=transcript_cleaned.json \
+    --duration=90 \
+    --crossfade_duration=1.5 \
+    --output=highlight_reel.mp4 \
+    --title="My Lecture – 90s Reel"
+```
+
 **The script will do the following**:
-1. **LLM-based Highlights**: Uses `litellm` to select ~90s of “best” segments from the transcript.  
-2. **Trim & Crossfade**: Extracts those segments from `my_podcast.mp3` and crossfades them.  
+1. **LLM-based Highlights**: Uses `litellm` to select ~90s of "best" segments from the transcript.  
+2. **Trim & Crossfade**: Extracts those segments from the audio and crossfades them.  
 3. **Waveform & Subtitles**: Generates a waveform and word-level subtitles for each segment.  
-4. **Overlay**: Places the waveform on `background.mp4`, then burns subtitles onto the result.  
+4. **Overlay**: Places the waveform on the background video, then burns subtitles onto the result.  
 5. **Outputs** the single MP4 named `highlight_reel.mp4`.
 
 ---
@@ -156,8 +178,9 @@ This project is open source under the [MIT License](LICENSE). You are free to us
 
 ## Additional Notes
 
-- **FFmpeg**: Required for running `karaokify.py`. Ensure it’s installed and on your PATH.  
+- **FFmpeg**: Required for running `karaokify.py`. Ensure it's installed and on your PATH.  
 - **Transcript Format**: The script expects JSON transcripts with `segments` containing `start`, `end`, `text`, etc. For best results, use `transcribe.py`.  
+- **Video Input**: When using --video_input, the script automatically extracts the audio and uses the video as background.
 - **litellm** usage:  
   - If you are using local or open LLMs, you may need to specify the endpoint in your environment.  
   - For production usage with Claude or GPT, you typically need API keys.  

@@ -183,3 +183,4 @@ cython_debug/
 
 # Project specific
 temp_ffmpeg/
+final_video.mp4
