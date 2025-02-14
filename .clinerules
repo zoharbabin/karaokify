@@ -1,0 +1,175 @@
+# Karaokify Project Rules & Patterns
+
+## Project Intelligence
+
+### 1. Core Workflow Patterns
+- Always process files in this order: transcribe -> select highlights -> generate video
+- Cache intermediate results using SHA-256 validation
+- Use GPU acceleration when available for transcription
+- Handle file paths relative to project root
+
+### 2. Implementation Guidelines
+- Prefer using replace_in_file for targeted code changes
+- Maintain clear separation between transcription and video generation
+- Follow Python best practices (PEP 8, type hints, docstrings)
+- Keep FFmpeg commands well-documented and parameterized
+
+### 3. Error Handling Patterns
+- Validate FFmpeg installation before operations
+- Implement LLM fallback mechanisms
+- Clean up temporary files on failure
+- Provide clear error messages for common issues
+
+### 4. Performance Patterns
+- Cache intermediate files for reuse
+- Use GPU acceleration when available
+- Implement efficient file I/O operations
+- Monitor memory usage during processing
+
+## User Preferences
+
+### 1. File Organization
+- Keep source code in root directory
+- Store fonts in /fonts directory
+- Use memory-bank/ for project documentation
+- Maintain clean working directory
+
+### 2. Code Style
+- Clear, descriptive variable names
+- Comprehensive docstrings
+- Type hints where beneficial
+- Modular function design
+
+### 3. Documentation
+- Maintain Memory Bank files
+- Document FFmpeg commands
+- Include usage examples
+- Keep README.md updated
+
+## Known Challenges
+
+### 1. Resource Management
+- Large file processing requires careful memory handling
+- GPU memory management during transcription
+- Temp file cleanup during processing
+- Cache size growth over time
+
+### 2. Integration Points
+- FFmpeg version compatibility
+- LLM API reliability
+- GPU driver requirements
+- Python version constraints
+
+### 3. Performance Considerations
+- Transcription speed vs accuracy
+- Video processing overhead
+- Memory usage during generation
+- Cache validation overhead
+
+## Evolution History
+
+### 1. Architecture Decisions
+- Separate transcription and video generation
+- Use JSON for transcript format
+- Implement caching system
+- Modular component design
+
+### 2. Tool Usage Patterns
+- Use replace_in_file for specific code changes
+- Use write_to_file for new files
+- Use execute_command for system operations
+- Use browser_action for testing web features
+
+### 3. Development Workflow
+- Test changes incrementally
+- Document updates in Memory Bank
+- Maintain consistent code style
+- Follow error handling patterns
+
+## Best Practices
+
+### 1. Code Management
+- Keep functions focused and modular
+- Implement comprehensive error handling
+- Use type hints for clarity
+- Document complex operations
+
+### 2. Resource Handling
+- Clean up temporary files
+- Validate cache integrity
+- Monitor memory usage
+- Handle large files efficiently
+
+### 3. Documentation
+- Update Memory Bank regularly
+- Document FFmpeg commands
+- Include usage examples
+- Maintain clear API docs
+
+### 4. Testing
+- Test with various input formats
+- Verify cache functionality
+- Check error handling
+- Monitor performance metrics
+
+## Coding Guidelines
+
+### 1. Test-Driven Development
+- Write tests before implementing features
+- Ensure all code is testable and verifiable
+- Create comprehensive test coverage
+- Document test cases and scenarios
+
+### 2. Code Standards
+- Follow PEP8, PEP20, and PEP257 for Python
+- Adhere to language-specific best practices
+- Maintain consistent style throughout
+- Use appropriate linting tools
+
+### 3. Code Organization
+- Break complex logic into manageable functions
+- Use OOP with proper encapsulation
+- Create shared utilities for common operations
+- Maintain clear file/module structure
+
+### 4. Documentation & Comments
+- Write comprehensive docstrings
+- Include minimal but clear inline comments
+- Document function parameters and returns
+- Explain complex algorithms or logic
+
+### 5. Error Handling
+- Implement robust error handling
+- Cover edge cases comprehensively
+- Provide clear error messages
+- Log errors appropriately
+
+### 6. Code Quality
+- Ensure code is performant and efficient
+- Make code easy to monitor and debug
+- Keep functions focused and modular
+- Follow SOLID principles
+
+### 7. Naming & Style
+- Use descriptive, consistent naming
+- Follow language conventions
+- Make code self-documenting
+- Maintain consistent formatting
+
+### 8. Change Management
+- Document all file changes
+- Explain change reasoning
+- Consider impact on other components
+- Update tests for changes
+
+### 9. Security
+- Implement strict security measures
+- Validate all inputs
+- Handle sensitive data appropriately
+- Follow security best practices
+
+### 10. Collaboration
+- Write code for maintainability
+- Consider other developers
+- Facilitate open-source contribution
+- Keep documentation updated
