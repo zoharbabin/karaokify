@@ -3,159 +3,158 @@
 ## Architecture Overview
 
 ### Component Structure
+1. **Transcription Module (transcribe.py)**
+   - Handles audio processing and transcription
+   - Uses Whisper-timestamped for word-level timing
+   - Outputs standardized JSON format
+   - Implements caching for efficiency
+
+2. **Video Generation Module (karaokify.py)**
+   - Manages video creation and effects
+   - Handles subtitle rendering and highlighting
+   - Creates waveform visualizations
+   - Implements smooth transitions
+
+### Data Flow
 ```mermaid
 graph TD
-    A[Input] --> B[Transcriber]
-    A --> C[Video Generator]
-    B --> D[Transcript JSON]
-    D --> E[Highlight Selector]
-    E --> F[Audio Processor]
-    E --> G[Subtitle Generator]
-    F --> H[Final Video]
-    G --> H
-    C --> H
+    A[Input Files] --> B[Transcription]
+    B --> C[Cache Storage]
+    C --> D[Highlight Selection]
+    D --> E[Video Generation]
+    E --> F[Final Output]
 ```
 
-## Key Components
+## Design Patterns
 
-### 1. Transcriber (transcribe.py)
-- Uses Whisper-timestamped for audio transcription
-- Implements voice activity detection (VAD)
-- Handles word-level timing and confidence scores
-- Cleans and deduplicates segments
-- Outputs standardized JSON format
+### 1. Caching Pattern
+- Use SHA-256 for file validation
+- Cache transcription results
+- Store intermediate video segments
+- Implement cache cleanup
 
-### 2. Video Generator (karaokify.py)
-#### Core Modules
-```mermaid
-graph LR
-    A[Input Handler] --> B[LLM Highlight Selector]
-    B --> C[Audio Processor]
-    B --> D[Subtitle Generator]
-    C --> E[Video Assembler]
-    D --> E
+### 2. Factory Pattern
+- Create video effects
+- Generate waveform visualizations
+- Build subtitle renderers
+- Handle file format conversions
+
+### 3. Strategy Pattern
+- Select transcription models
+- Choose highlight algorithms
+- Configure video effects
+- Manage audio processing
+
+### 4. Observer Pattern
+- Monitor processing progress
+- Track cache usage
+- Handle error events
+- Update status indicators
+
+## Implementation Patterns
+
+### 1. File Processing
+```python
+def process_file(file_path: str) -> bool:
+    """
+    Template for file processing operations.
+    Includes validation, processing, and cleanup.
+    """
+    try:
+        validate_file(file_path)
+        process_content(file_path)
+        cleanup_temporary_files()
+        return True
+    except Exception as e:
+        handle_error(e)
+        return False
 ```
 
-#### Caching System
-- Implements file hashing for cache validation
-- Caches intermediate files:
-  - Extracted audio
-  - Waveform video
-  - Highlight segments
-  - Trimmed audio
+### 2. Cache Management
+```python
+def cache_operation(key: str, operation: Callable) -> Any:
+    """
+    Template for cache operations.
+    Implements check-compute-store pattern.
+    """
+    if cache_exists(key):
+        return load_from_cache(key)
+    result = operation()
+    save_to_cache(key, result)
+    return result
+```
+
+### 3. Error Handling
+```python
+def safe_operation(operation: Callable) -> Result:
+    """
+    Template for error handling.
+    Includes logging and cleanup.
+    """
+    try:
+        return operation()
+    except Exception as e:
+        log_error(e)
+        cleanup()
+        raise
+```
 
 ## Technical Patterns
 
-### 1. File Processing Pipeline
-```mermaid
-graph TD
-    A[Input Validation] --> B[Cache Check]
-    B --> C{Cache Hit?}
-    C -->|Yes| D[Use Cached]
-    C -->|No| E[Process New]
-    E --> F[Save Cache]
-    D --> G[Next Step]
-    F --> G
-```
+### 1. Resource Management
+- Implement context managers for file handling
+- Use memory-efficient processing
+- Clean up temporary resources
+- Monitor system resources
 
-### 2. Error Handling
-- Comprehensive FFmpeg command validation
-- LLM fallback mechanisms for highlight selection
-- Cache validation with SHA-256 hashing
-- Graceful handling of missing dependencies
+### 2. Concurrency
+- Process large files in chunks
+- Implement parallel processing where beneficial
+- Use async operations for I/O
+- Manage thread pools efficiently
 
-### 3. Performance Optimizations
-- GPU acceleration for transcription when available
-- Efficient caching of intermediate files
-- Parallel processing where possible
-- Memory-efficient file handling
+### 3. Configuration
+- Use environment variables for settings
+- Implement configuration validation
+- Support command-line arguments
+- Maintain default configurations
 
-## Design Decisions
+## Testing Patterns
 
-### 1. Transcription
-- **Choice**: Whisper-timestamped over vanilla Whisper
-- **Rationale**: 
-  - Better timestamp accuracy
-  - Word-level confidence scores
-  - Built-in VAD support
-  - Disfluency detection
+### 1. Unit Testing
+- Test individual components
+- Mock external dependencies
+- Verify error handling
+- Check edge cases
 
-### 2. Video Generation
-- **FFmpeg Integration**:
-  - Direct command execution for performance
-  - Complex filter graphs for effects
-  - Hardware acceleration support
-  - Format flexibility
+### 2. Integration Testing
+- Test component interactions
+- Verify end-to-end flows
+- Test with various input types
+- Validate output quality
 
-### 3. Subtitle System
-- **ASS Format Choice**:
-  - Rich styling capabilities
-  - Word-level timing control
-  - Efficient rendering
-  - Multi-layer support
+### 3. Performance Testing
+- Monitor processing speed
+- Check memory usage
+- Verify cache efficiency
+- Test with large files
 
-### 4. Highlight Selection
-- **LLM Integration**:
-  - Context-aware selection
-  - Flexible duration control
-  - Fallback mechanisms
-  - Cached results
+## Maintenance Patterns
 
-## Data Flow
+### 1. Code Organization
+- Maintain clear module structure
+- Use consistent naming conventions
+- Document public interfaces
+- Keep related code together
 
-### 1. Transcription Flow
-```mermaid
-graph TD
-    A[Audio Input] --> B[Whisper Model]
-    B --> C[Word Timing]
-    B --> D[Confidence Scores]
-    C --> E[Segment Cleaning]
-    D --> E
-    E --> F[JSON Output]
-```
+### 2. Documentation
+- Update Memory Bank files
+- Document complex algorithms
+- Maintain API documentation
+- Include usage examples
 
-### 2. Video Generation Flow
-```mermaid
-graph TD
-    A[Input Files] --> B[Cache Validation]
-    B --> C[Highlight Selection]
-    C --> D[Audio Processing]
-    C --> E[Subtitle Generation]
-    D --> F[Waveform Creation]
-    E --> G[Final Assembly]
-    F --> G
-```
-
-## Extension Points
-
-### 1. Input Processing
-- Support for additional audio/video formats
-- Custom input preprocessing
-- Batch processing capabilities
-
-### 2. Output Customization
-- Additional visual effects
-- Custom subtitle styles
-- Alternative waveform visualizations
-
-### 3. LLM Integration
-- Support for different LLM providers
-- Custom prompt engineering
-- Alternative selection strategies
-
-## Configuration Management
-
-### 1. Command-line Arguments
-- Comprehensive argument parsing
-- Sensible defaults
-- Clear documentation
-
-### 2. Environment Variables
-- LLM API credentials
-- System-specific settings
-- Debug configurations
-
-### 3. Resource Management
-- Temporary file cleanup
-- Cache size control
-- Memory usage optimization
+### 3. Version Control
+- Use meaningful commit messages
+- Track significant changes
+- Document breaking changes
+- Maintain change history

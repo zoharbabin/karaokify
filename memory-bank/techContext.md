@@ -1,191 +1,213 @@
 # Technical Context
 
-## Development Environment
-
-### Core Requirements
-- Python 3.12 or higher
-- FFmpeg installed and available on PATH
-- GPU support (optional but recommended)
-
-### Dependencies
-#### Transcription (transcribe.py)
-```
-torch
-torchaudio
-whisper-timestamped
-onnxruntime  # or onnxruntime-gpu if available
-```
-
-#### Video Generation (karaokify.py)
-```
-fonttools
-Pillow
-litellm
-boto3
-```
-
 ## Technology Stack
 
-### 1. Audio Processing
-- **Whisper-timestamped**
-  - Modified version of OpenAI's Whisper
-  - Enhanced timestamp accuracy
-  - Word-level confidence scoring
-  - Voice activity detection
-  - Disfluency detection
+### Core Dependencies
+1. **Python 3.12+**
+   - Type hints
+   - Async support
+   - Modern language features
 
-- **FFmpeg**
-  - Audio extraction
-  - Waveform generation
-  - Audio crossfading
-  - Video assembly
-  - Hardware acceleration support
+2. **FFmpeg**
+   - Audio/video processing
+   - Format conversion
+   - Waveform generation
+   - Subtitle rendering
 
-### 2. Machine Learning
-- **LLM Integration**
-  - Uses litellm for model access
-  - Default model: anthropic.claude-3-5-sonnet
-  - Configurable through environment variables
-  - Fallback mechanisms for failures
+3. **Whisper-timestamped**
+   - Audio transcription
+   - Word-level timing
+   - Multiple model sizes
+   - GPU acceleration
 
-- **GPU Acceleration**
-  - CUDA support for Whisper
-  - Hardware acceleration for FFmpeg
-  - Automatic device selection
-  - Fallback to CPU when needed
+4. **litellm**
+   - LLM integration
+   - Highlight selection
+   - Content summarization
+   - Provider abstraction
 
-### 3. Video Processing
-- **Subtitle Generation**
-  - ASS (Advanced SubStation Alpha) format
-  - Word-level timing control
-  - Multi-layer support
-  - Rich styling capabilities
+### Development Tools
+- **Git**: Version control
+- **Poetry**: Dependency management
+- **pytest**: Testing framework
+- **black**: Code formatting
+- **mypy**: Type checking
+- **ruff**: Linting
 
-- **Waveform Visualization**
-  - Dynamic generation
-  - Customizable appearance
-  - Shadow effects
-  - Transparent background
+## System Requirements
 
-### 4. File Management
-- **Caching System**
-  - SHA-256 hash validation
-  - Intermediate file caching
-  - Automatic cleanup
-  - Cache invalidation
+### Hardware Requirements
+- CPU: Multi-core processor
+- RAM: 8GB minimum (16GB recommended)
+- GPU: Optional, supports CUDA/ROCm
+- Storage: SSD recommended for cache
 
-## Technical Constraints
+### Software Requirements
+- Python 3.12 or higher
+- FFmpeg latest stable version
+- CUDA toolkit (for GPU support)
+- System-level audio codecs
 
-### 1. System Requirements
-- FFmpeg must be installed and on PATH
-- Sufficient disk space for intermediate files
-- Adequate RAM for video processing
-- Python 3.12+ environment
+## Project Structure
 
-### 2. Performance Considerations
-- GPU memory for transcription
-- Disk I/O for caching
-- CPU usage for video processing
-- Memory usage for large files
+### Directory Layout
+```
+karaokify/
+├── karaokify.py      # Main video generation
+├── transcribe.py     # Audio transcription
+├── requirements.txt  # Dependencies
+├── fonts/           # Font resources
+└── memory-bank/     # Documentation
+```
 
-### 3. API Dependencies
-- LLM API access (e.g., Anthropic, OpenAI)
-- API rate limits
-- Authentication requirements
-- Cost considerations
+### Module Organization
+1. **Transcription Module**
+   ```python
+   # transcribe.py
+   class Transcriber:
+       def __init__(self, model_size: str)
+       def transcribe(self, audio_path: str) -> dict
+       def cache_result(self, key: str, data: dict)
+   ```
 
-## Development Setup
+2. **Video Generation Module**
+   ```python
+   # karaokify.py
+   class VideoGenerator:
+       def __init__(self, config: dict)
+       def generate(self, transcript: dict) -> str
+       def create_effects(self, segment: dict)
+   ```
 
-### 1. Installation
+## Configuration
+
+### Environment Variables
 ```bash
-# Clone repository
-git clone [repository-url]
+OPENAI_API_KEY=sk-...      # For LLM integration
+CACHE_DIR=/path/to/cache   # Cache location
+GPU_ENABLED=true          # Enable GPU
+MODEL_SIZE=medium         # Whisper model size
+```
 
-# Install dependencies
+### Command Line Arguments
+```bash
+# Transcription
+--audio_path    # Input audio file
+--model_size    # Whisper model size
+--cache         # Enable caching
+
+# Video Generation
+--video_input   # Input video/image
+--transcript    # Transcript JSON
+--output        # Output path
+```
+
+## Performance Considerations
+
+### Optimization Strategies
+1. **Caching**
+   - SHA-256 validation
+   - Intermediate file storage
+   - Cache cleanup policies
+
+2. **GPU Acceleration**
+   - Transcription speedup
+   - Parallel processing
+   - Memory management
+
+3. **Resource Management**
+   - Chunk processing
+   - Memory efficiency
+   - Temp file cleanup
+
+### Bottlenecks
+1. **Transcription**
+   - CPU/GPU intensive
+   - Model loading time
+   - Memory usage
+
+2. **Video Processing**
+   - I/O operations
+   - Effect rendering
+   - Format conversion
+
+## Integration Points
+
+### External APIs
+1. **OpenAI/LiteLLM**
+   - API key management
+   - Rate limiting
+   - Error handling
+
+2. **FFmpeg**
+   - Command construction
+   - Output parsing
+   - Error handling
+
+### File Formats
+1. **Input**
+   - Audio: WAV, MP3
+   - Video: MP4, MOV
+   - Images: PNG, JPG
+
+2. **Output**
+   - Video: MP4
+   - Transcript: JSON
+   - Cache: Binary
+
+## Security
+
+### Data Protection
+- Secure API key storage
+- Cache file permissions
+- Input validation
+- Temp file cleanup
+
+### Error Handling
+- Graceful degradation
+- Clear error messages
+- Logging system
+- Recovery procedures
+
+## Deployment
+
+### Installation
+```bash
+# Basic setup
 pip install -r requirements.txt
 
-# Verify FFmpeg installation
-ffmpeg -version
+# GPU support
+pip install torch --extra-index-url https://download.pytorch.org/whl/cu118
 ```
 
-### 2. Environment Configuration
+### Testing
 ```bash
-# LLM API Configuration
-export ANTHROPIC_API_KEY="your-api-key"
-# or
-export OPENAI_API_KEY="your-api-key"
+# Run tests
+pytest tests/
 
-# AWS Configuration (if using Bedrock)
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="your-region"
+# Check types
+mypy .
+
+# Lint code
+ruff check .
 ```
 
-### 3. Testing Setup
-```bash
-# Verify transcription
-python transcribe.py --audio_path="test.wav" --model_size="small"
+## Maintenance
 
-# Verify video generation
-python karaokify.py --video_input="test.mp4" --transcript="transcript.json"
-```
+### Monitoring
+- Process resource usage
+- Cache size/usage
+- Error rates
+- Processing times
 
-## Optimization Guidelines
-
-### 1. Performance
-- Use GPU acceleration when available
-- Implement efficient caching
-- Optimize file I/O operations
-- Manage memory usage
-
-### 2. Quality
-- Balance audio quality vs file size
-- Optimize video resolution
-- Fine-tune subtitle timing
-- Adjust waveform parameters
-
-### 3. Resource Usage
-- Clean up temporary files
-- Monitor memory consumption
-- Manage cache size
-- Handle large files efficiently
-
-## Debugging Tools
-
-### 1. FFmpeg
-- Debug level logging
-- Progress monitoring
-- Error tracking
-- Format validation
-
-### 2. Python
-- Logging configuration
-- Error tracebacks
-- Memory profiling
-- Performance monitoring
-
-### 3. LLM Integration
-- Response validation
-- Error handling
-- Fallback mechanisms
-- Rate limit monitoring
-
-## Future Considerations
-
-### 1. Scalability
-- Batch processing support
-- Parallel processing
-- Cloud integration
-- API service potential
-
-### 2. Maintenance
+### Updates
 - Dependency updates
 - Security patches
-- Performance improvements
+- Model updates
 - Feature additions
 
-### 3. Integration
-- Additional LLM providers
-- New video effects
-- Format support
-- Platform compatibility
+### Documentation
+- API documentation
+- Usage examples
+- Configuration guide
+- Troubleshooting

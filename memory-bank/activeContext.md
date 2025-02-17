@@ -2,196 +2,162 @@
 
 ## Current Status
 
-### Project State
-- Initial implementation complete
-- Core functionality working
-- Basic documentation in place
-- Example files provided
+### Development Phase
+- Initial project setup complete
+- Core modules implemented
+- Basic functionality working
+- Testing and optimization in progress
 
 ### Recent Changes
-- Implemented karaokify.py with full video generation pipeline
-- Added transcribe.py for audio transcription
-- Created comprehensive README.md
-- Set up basic project structure
+1. Project structure established
+2. Core dependencies configured
+3. Basic transcription pipeline working
+4. Video generation framework implemented
 
-### Active Components
-1. **Transcription System**
-   - Using Whisper-timestamped
-   - Word-level timing working
-   - Segment cleaning implemented
-   - GPU acceleration supported
+### Current Focus
+1. Optimizing transcription performance
+2. Implementing caching system
+3. Enhancing video effects
+4. Improving error handling
 
-2. **Video Generation**
-   - FFmpeg integration complete
-   - Waveform visualization working
-   - Subtitle system implemented
-   - Caching system active
+## Immediate Tasks
 
-3. **LLM Integration**
-   - Using Claude 3 Sonnet
-   - Highlight selection working
-   - Fallback system in place
-   - Caching implemented
+### High Priority
+1. Implement SHA-256 cache validation
+2. Add GPU acceleration support
+3. Enhance waveform visualization
+4. Improve subtitle rendering
 
-## Current Focus
+### In Progress
+1. Cache system implementation
+2. Performance optimization
+3. Error handling improvements
+4. Documentation updates
 
-### Immediate Priorities
-1. Testing and validation
-   - Different input formats
-   - Various content lengths
-   - Edge case handling
-   - Performance optimization
+### Upcoming
+1. Add unit tests
+2. Implement CI/CD
+3. Create user documentation
+4. Add configuration validation
 
-2. Documentation improvements
-   - API documentation
-   - Example use cases
-   - Troubleshooting guide
-   - Performance tips
+## Technical Debt
 
-3. Quality assurance
-   - Code review
-   - Error handling
-   - Edge case testing
-   - Performance profiling
+### Code Quality
+1. Need more comprehensive error handling
+2. Improve type hints coverage
+3. Add logging system
+4. Enhance documentation
 
-### Active Decisions
-1. **LLM Selection**
-   - Using Claude 3 Sonnet for reliability
-   - Considering additional provider support
-   - Evaluating cost implications
-   - Planning fallback improvements
+### Performance
+1. Optimize large file processing
+2. Improve memory management
+3. Enhance cache efficiency
+4. Add progress monitoring
 
-2. **Caching Strategy**
-   - SHA-256 for validation
-   - Intermediate file caching
-   - Cache cleanup policies
-   - Storage optimization
+### Testing
+1. Add unit test suite
+2. Implement integration tests
+3. Add performance benchmarks
+4. Create test data sets
 
-3. **Performance Optimization**
-   - GPU acceleration where possible
-   - Efficient file handling
-   - Memory management
-   - Processing pipeline optimization
+## Recent Decisions
+
+### Architecture
+1. Adopted modular design for flexibility
+2. Implemented caching for efficiency
+3. Used FFmpeg for video processing
+4. Integrated LLM for highlight selection
+
+### Technology
+1. Selected Python 3.12+ for development
+2. Chose Whisper-timestamped for transcription
+3. Integrated litellm for LLM support
+4. Used Poetry for dependency management
+
+## Known Issues
+
+### Bugs
+1. Memory usage spikes with large files
+2. Cache validation occasionally fails
+3. GPU detection needs improvement
+4. Error messages need enhancement
+
+### Limitations
+1. Processing speed on CPU-only systems
+2. Memory requirements for large files
+3. Cache size growth over time
+4. Limited file format support
 
 ## Next Steps
 
 ### Short Term
-1. **Testing**
-   - Create comprehensive test suite
-   - Add integration tests
-   - Implement stress testing
-   - Document test cases
-
-2. **Documentation**
-   - Add API reference
-   - Create usage examples
-   - Write troubleshooting guide
-   - Document configuration options
-
-3. **Optimization**
-   - Profile performance
-   - Optimize memory usage
-   - Improve caching
-   - Enhance error handling
+1. Complete cache system
+2. Add GPU support
+3. Enhance error handling
+4. Improve documentation
 
 ### Medium Term
-1. **Features**
-   - Additional video effects
-   - More customization options
-   - Batch processing support
-   - Alternative visualization styles
-
-2. **Integration**
-   - Additional LLM providers
-   - Cloud service integration
-   - CI/CD pipeline
-   - Automated testing
-
-3. **User Experience**
-   - Command-line improvements
-   - Progress reporting
-   - Error messages
-   - Configuration management
+1. Implement testing suite
+2. Add CI/CD pipeline
+3. Optimize performance
+4. Enhance user interface
 
 ### Long Term
-1. **Architecture**
-   - Service-oriented version
-   - API endpoints
-   - Web interface
-   - Plugin system
+1. Add more file formats
+2. Implement advanced effects
+3. Create web interface
+4. Add cloud processing support
 
-2. **Scaling**
-   - Distributed processing
-   - Cloud deployment
-   - Performance optimization
-   - Resource management
+## Resource Tracking
 
-3. **Community**
-   - Open source engagement
-   - Documentation portal
-   - Example gallery
-   - Contribution guidelines
+### Memory Usage
+- Monitoring large file processing
+- Tracking cache growth
+- Observing GPU memory
+- Measuring peak usage
 
-## Known Issues
+### Processing Time
+- Transcription duration
+- Video generation speed
+- Cache validation time
+- Overall pipeline performance
 
-### Active Bugs
-- None identified yet
+### Storage
+- Cache size trends
+- Temporary file usage
+- Output file sizes
+- Resource cleanup efficiency
 
-### Limitations
-1. **Processing**
-   - Large file handling
-   - Memory consumption
-   - Processing time
-   - GPU requirements
+## Documentation Status
 
-2. **Integration**
-   - LLM API dependencies
-   - FFmpeg version requirements
-   - Python version constraints
-   - System dependencies
+### Updated
+- Project structure
+- Core functionality
+- Installation guide
+- Basic usage
 
-3. **Features**
-   - Limited video effects
-   - Basic customization
-   - Single file processing
-   - Local execution only
+### Needs Update
+- Advanced features
+- Performance tuning
+- Error handling
+- Configuration options
 
-## Monitoring
+## Environment Setup
 
-### Performance Metrics
-- Processing time
-- Memory usage
-- Cache efficiency
-- API response times
+### Development
+- Python 3.12+
+- FFmpeg latest
+- GPU drivers (optional)
+- Development tools
 
-### Quality Metrics
-- Transcription accuracy
-- Video quality
-- Audio synchronization
-- User satisfaction
+### Testing
+- pytest configuration
+- Test data sets
+- Performance benchmarks
+- Coverage reports
 
-### Resource Usage
-- Disk space
-- Memory consumption
-- CPU utilization
-- GPU utilization
-
-## Notes
-
-### Recent Insights
-- Efficient caching significantly improves performance
-- GPU acceleration crucial for large files
-- LLM quality impacts highlight selection
-- FFmpeg configuration affects output quality
-
-### Questions to Address
-1. Scaling considerations
-2. Cloud deployment options
-3. Additional format support
-4. Performance optimization strategies
-
-### Areas for Improvement
-1. Documentation completeness
-2. Error handling robustness
-3. Testing coverage
-4. User experience enhancement
+### Production
+- Deployment guide
+- System requirements
+- Configuration templates
+- Monitoring setup
