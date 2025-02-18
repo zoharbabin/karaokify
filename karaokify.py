@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import hashlib
+import time
 from pprint import pprint
 
 from fontTools.ttLib import TTFont
@@ -129,52 +130,145 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_file_hash(file_path, block_size=65536):
+class CacheManager:
     """
-    Calculate SHA-256 hash of a file for cache validation.
+    Manages file caching with SHA-256 validation and cleanup.
+    Implements check-compute-store pattern from system patterns.
     """
-    sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for block in iter(lambda: f.read(block_size), b""):
-            sha256_hash.update(block)
-    return sha256_hash.hexdigest()
-
-
-def get_cached_file(temp_dir, cache_key, source_file=None):
-    """
-    Check if a cached file exists and is valid.
-    Returns the cached file path if valid, None otherwise.
-    
-    :param temp_dir: Directory containing cached files
-    :param cache_key: Base name of the cached file
-    :param source_file: If provided, validate cache against this source file's hash
-    :return: Path to valid cached file or None
-    """
-    cached_file = os.path.join(temp_dir, cache_key)
-    hash_file = os.path.join(temp_dir, f"{cache_key}.hash")
-    
-    if not os.path.exists(cached_file) or not os.path.exists(hash_file):
-        return None
+    def __init__(self, temp_dir):
+        self.temp_dir = temp_dir
+        os.makedirs(temp_dir, exist_ok=True)
         
-    if source_file:
-        current_hash = get_file_hash(source_file)
-        try:
-            with open(hash_file, 'r') as f:
-                cached_hash = f.read().strip()
-            if current_hash != cached_hash:
-                return None
-        except Exception:
-            return None
+    def get_file_hash(self, file_path: str, block_size: int = 65536) -> str:
+        """
+        Calculate SHA-256 hash of a file for cache validation.
+        
+        Args:
+            file_path: Path to the file to hash
+            block_size: Size of blocks to read for memory efficiency
             
-    return cached_file
+        Returns:
+            str: Hexadecimal SHA-256 hash of the file
+        """
+        sha256_hash = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for block in iter(lambda: f.read(block_size), b""):
+                    sha256_hash.update(block)
+            return sha256_hash.hexdigest()
+        except Exception as e:
+            print(f"Error calculating file hash for {file_path}: {e}")
+            return ""
 
+    def get_cached_file(self, cache_key: str, source_file: str = None) -> str:
+        """
+        Check if a cached file exists and is valid using SHA-256 validation.
+        
+        Args:
+            cache_key: Base name of the cached file
+            source_file: If provided, validate cache against this source file's hash
+            
+        Returns:
+            str: Path to valid cached file or empty string if invalid/missing
+        """
+        cached_file = os.path.join(self.temp_dir, cache_key)
+        hash_file = os.path.join(self.temp_dir, f"{cache_key}.hash")
+        
+        # Check if both cache file and hash file exist
+        if not os.path.exists(cached_file) or not os.path.exists(hash_file):
+            return ""
+        
+        try:
+            # If source file provided, validate against its current hash
+            if source_file:
+                current_hash = self.get_file_hash(source_file)
+                if not current_hash:  # Error calculating hash
+                    return ""
+                    
+                with open(hash_file, 'r') as f:
+                    cached_hash = f.read().strip()
+                    
+                if current_hash != cached_hash:
+                    # Hash mismatch - source file has changed
+                    self.cleanup_invalid_cache(cache_key)
+                    return ""
+                    
+            # Validate the cached file's hash matches its hash file
+            cached_file_hash = self.get_file_hash(cached_file)
+            if not cached_file_hash:  # Error calculating hash
+                return ""
+                
+            # Additional validation of cached file integrity
+            if os.path.getsize(cached_file) == 0:
+                self.cleanup_invalid_cache(cache_key)
+                return ""
+                
+            return cached_file
+            
+        except Exception as e:
+            print(f"Error validating cache for {cache_key}: {e}")
+            self.cleanup_invalid_cache(cache_key)
+            return ""
 
-def save_file_hash(file_path, temp_dir, cache_key):
-    """Save hash of source file for future cache validation."""
-    hash_file = os.path.join(temp_dir, f"{cache_key}.hash")
-    file_hash = get_file_hash(file_path)
-    with open(hash_file, 'w') as f:
-        f.write(file_hash)
+    def save_file_hash(self, file_path: str, cache_key: str) -> bool:
+        """
+        Save hash of source file for future cache validation.
+        
+        Args:
+            file_path: Path to the file to hash
+            cache_key: Base name for the cache files
+            
+        Returns:
+            bool: True if hash was saved successfully, False otherwise
+        """
+        try:
+            hash_file = os.path.join(self.temp_dir, f"{cache_key}.hash")
+            file_hash = self.get_file_hash(file_path)
+            if not file_hash:
+                return False
+                
+            with open(hash_file, 'w') as f:
+                f.write(file_hash)
+            return True
+        except Exception as e:
+            print(f"Error saving file hash for {cache_key}: {e}")
+            return False
+            
+    def cleanup_invalid_cache(self, cache_key: str) -> None:
+        """
+        Clean up invalid cache files for a given cache key.
+        
+        Args:
+            cache_key: Base name of the cache files to clean up
+        """
+        try:
+            cached_file = os.path.join(self.temp_dir, cache_key)
+            hash_file = os.path.join(self.temp_dir, f"{cache_key}.hash")
+            
+            if os.path.exists(cached_file):
+                os.remove(cached_file)
+            if os.path.exists(hash_file):
+                os.remove(hash_file)
+        except Exception as e:
+            print(f"Error cleaning up cache for {cache_key}: {e}")
+            
+    def cleanup_old_cache(self, max_age_days: int = 7) -> None:
+        """
+        Clean up cache files older than specified days.
+        
+        Args:
+            max_age_days: Maximum age of cache files in days
+        """
+        try:
+            current_time = time.time()
+            for filename in os.listdir(self.temp_dir):
+                file_path = os.path.join(self.temp_dir, filename)
+                if os.path.isfile(file_path):
+                    file_age = current_time - os.path.getmtime(file_path)
+                    if file_age > (max_age_days * 24 * 60 * 60):
+                        os.remove(file_path)
+        except Exception as e:
+            print(f"Error cleaning up old cache: {e}")
 
 
 def run_ffmpeg_command(cmd, step_description):
@@ -331,44 +425,89 @@ def get_highlight_segments(transcript, max_duration, crossfade_duration=0):
         return fallback_highlights(reduced_transcript, max_duration, crossfade_duration)
 
 
-def trim_audio_segments(audio_path, highlights_data, output_path, crossfade_duration=1.0):
+def trim_audio_segments(input_path, highlights_data, audio_output_path, video_output_path=None, crossfade_duration=1.0):
     """
-    Extract each highlight clip from the audio and crossfade them together.
+    Extract each highlight clip from the input and crossfade them together.
+    If video_output_path is provided, also extract and crossfade video segments.
     """
     highlights = highlights_data.get("highlights", [])
     if not highlights:
-        print("No highlights found, skipping trim_audio_segments.")
+        print("No highlights found, skipping trim_segments.")
         return
 
     highlights.sort(key=lambda x: x["start"])
-    tmp_dir = os.path.dirname(output_path)
+    tmp_dir = os.path.dirname(audio_output_path)
     clip_files = []
+    video_clip_files = []
+
+    # Calculate total duration for video padding
+    total_duration = 0
+    for i, seg in enumerate(highlights):
+        if i > 0:
+            total_duration -= crossfade_duration  # Account for overlap
+        total_duration += seg["end"] - seg["start"]
 
     for i, seg in enumerate(highlights):
         start = seg["start"]
         end = seg["end"]
         duration = end - start
         clip_filename = os.path.join(tmp_dir, f"clip_{i}.m4a")
+        video_clip_filename = os.path.join(tmp_dir, f"clip_{i}.mp4") if video_output_path else None
 
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-ss", str(start),
-            "-t", str(duration),
-            "-i", audio_path,
-            "-acodec", "aac",
-            "-b:a", "192k",
-            clip_filename,
-        ]
-        run_ffmpeg_command(cmd, f"Extracting highlight clip {i}")
+        # Extract both audio and video if video output is requested
+        if video_output_path:
+            # Extract video segment with audio
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start),
+                "-t", str(duration),
+                "-i", input_path,
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                video_clip_filename,
+            ]
+            run_ffmpeg_command(cmd, f"Extracting highlight clip {i}")
+            video_clip_files.append(video_clip_filename)
+            
+            # Extract audio from the video clip for crossfading
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i", video_clip_filename,
+                "-vn",
+                "-acodec", "aac",
+                "-b:a", "192k",
+                clip_filename,
+            ]
+            run_ffmpeg_command(cmd, f"Extracting audio from highlight clip {i}")
+        else:
+            # Audio only extraction
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-ss", str(start),
+                "-t", str(duration),
+                "-i", input_path,
+                "-vn",
+                "-acodec", "aac",
+                "-b:a", "192k",
+                clip_filename,
+            ]
+            run_ffmpeg_command(cmd, f"Extracting highlight clip {i}")
+        
         clip_files.append(clip_filename)
 
     if len(clip_files) == 1:
-        os.rename(clip_files[0], output_path)
+        os.rename(clip_files[0], audio_output_path)
+        if video_output_path and video_clip_files:
+            os.rename(video_clip_files[0], video_output_path)
         return
 
+    # Crossfade audio clips
     num_clips = len(clip_files)
-    filter_lines = []
+    audio_filter_lines = []
     for i in range(num_clips - 1):
         left_label = f"[{i}:a]" if i == 0 else f"[a{i}]"
         right_label = f"[{i+1}:a]"
@@ -378,23 +517,63 @@ def trim_audio_segments(audio_path, highlights_data, output_path, crossfade_dura
             f"d={crossfade_duration}:curve1=tri:curve2=tri"
             f"{out_label}"
         )
-        filter_lines.append(line)
+        audio_filter_lines.append(line)
 
-    final_label = f"[a{num_clips-1}]"
-    filtergraph = ";".join(filter_lines)
+    final_audio_label = f"[a{num_clips-1}]"
+    audio_filtergraph = ";".join(audio_filter_lines)
 
-    crossfade_cmd = ["ffmpeg", "-y"]
+    # Crossfade audio
+    audio_cmd = ["ffmpeg", "-y"]
     for cf in clip_files:
-        crossfade_cmd += ["-i", cf]
-    crossfade_cmd += [
-        "-filter_complex", filtergraph,
-        "-map", final_label,
+        audio_cmd += ["-i", cf]
+    audio_cmd += [
+        "-filter_complex", audio_filtergraph,
+        "-map", final_audio_label,
         "-c:a", "aac",
         "-b:a", "192k",
-        output_path,
+        audio_output_path,
     ]
+    run_ffmpeg_command(audio_cmd, "Crossfading audio clips")
 
-    run_ffmpeg_command(crossfade_cmd, "Crossfading highlight clips")
+    # Crossfade video if requested
+    if video_output_path and video_clip_files:
+        video_filter_lines = []
+        current_offset = 0
+        for i in range(num_clips - 1):
+            left_label = f"[{i}:v]" if i == 0 else f"[v{i}]"
+            right_label = f"[{i+1}:v]"
+            out_label = f"[v{i+1}]"
+            
+            # Calculate duration of current clip
+            clip_duration = highlights[i]["end"] - highlights[i]["start"]
+            # Offset for next transition is current position minus crossfade duration
+            transition_offset = current_offset + clip_duration - crossfade_duration
+            
+            line = (
+                f"{left_label}{right_label}xfade="
+                f"transition=fade:duration={crossfade_duration}:"
+                f"offset={transition_offset}"
+                f"{out_label}"
+            )
+            video_filter_lines.append(line)
+            
+            # Update offset for next clip
+            current_offset = transition_offset + crossfade_duration
+
+        final_video_label = f"[v{num_clips-1}]"
+        video_filtergraph = ";".join(video_filter_lines)
+
+        video_cmd = ["ffmpeg", "-y"]
+        for vf in video_clip_files:
+            video_cmd += ["-i", vf]
+        video_cmd += [
+            "-filter_complex", video_filtergraph,
+            "-map", final_video_label,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            video_output_path,
+        ]
+        run_ffmpeg_command(video_cmd, "Crossfading video clips")
 
 
 def chunk_into_subsegments(shifted_words, overall_start, overall_end, segment_id_start, max_chars=40, max_lines=2):
@@ -459,69 +638,100 @@ def realign_transcript(original_segments, highlight_data, crossfade_duration=1.0
     """
     Re-map word-level times to match the spliced audio timeline after trimming.
     Then chunk each highlight's words into smaller segments.
+    Handles crossfade transitions by adjusting word timings in overlap regions.
     """
     highlights = highlight_data.get("highlights", [])
     if not highlights:
         return []
 
-    # Compute offsets in the final timeline
-    highlight_offsets = []
+    # First pass: Calculate exact timeline positions
+    timeline_positions = []
+    current_time = 0.0
+    
     for i, h in enumerate(highlights):
-        if i == 0:
-            highlight_offsets.append(0.0)
+        segment_length = h["end"] - h["start"]
+        if i < len(highlights) - 1:
+            effective_length = segment_length - crossfade_duration
         else:
-            prev = highlights[i - 1]
-            prev_len = prev["end"] - prev["start"]
-            highlight_offsets.append(highlight_offsets[i - 1] + prev_len - crossfade_duration)
+            effective_length = segment_length
+            
+        timeline_positions.append({
+            "start": current_time,
+            "orig_start": h["start"],
+            "orig_end": h["end"],
+            "end": current_time + segment_length,
+            "effective_end": current_time + effective_length,
+            "crossfade_start": current_time + effective_length if i < len(highlights) - 1 else None
+        })
+        current_time += effective_length
 
     all_segments = []
     id_counter = 1
-    for i, highlight in enumerate(highlights):
-        orig_start = highlight["start"]
-        orig_end = highlight["end"]
-        seg_dur = orig_end - orig_start
-        offset = highlight_offsets[i]
-        if i < len(highlights) - 1:
-            local_end = offset + seg_dur - crossfade_duration
-        else:
-            local_end = offset + seg_dur
 
-        matched_words = []
-        for seg in original_segments:
-            if seg["end"] <= orig_start or seg["start"] >= orig_end:
-                continue
-            for w in seg.get("words", []):
-                if w["end"] <= orig_start or w["start"] >= orig_end:
-                    continue
-                if w["text"].strip() == "[*]":
-                    continue
-                w_start = max(w["start"], orig_start)
-                w_end = min(w["end"], orig_end)
-                matched_words.append({
-                    "text": w["text"],
-                    "start": round(offset + (w_start - orig_start), 3),
-                    "end": round(offset + (w_end - orig_start), 3),
-                })
-
-        matched_words.sort(key=lambda x: x["start"])
-        clipped_words = [w for w in matched_words if w["end"] <= local_end]
-
+    # Process each highlight segment
+    for i, (highlight, timeline) in enumerate(zip(highlights, timeline_positions)):
+        # Add title/section header
         notice_id = id_counter
         id_counter += 1
         title_text = highlight.get("segment_title", f"Highlight #{i+1}")
         highlight_notice_seg = {
             "id": notice_id,
-            "start": round(offset, 2),
-            "end": round(min(offset + 3, local_end - 2), 2),
+            "start": round(timeline["start"], 2),
+            "end": round(min(timeline["start"] + 3, timeline["effective_end"] - 2), 2),
             "text": f"- {title_text} -",
             "words": [],
         }
         all_segments.append(highlight_notice_seg)
 
+        # Process words
+        matched_words = []
+        for seg in original_segments:
+            if seg["end"] <= highlight["start"] or seg["start"] >= highlight["end"]:
+                continue
+                
+            for w in seg.get("words", []):
+                if w["end"] <= highlight["start"] or w["start"] >= highlight["end"]:
+                    continue
+                if w["text"].strip() == "[*]":
+                    continue
+
+                # Calculate relative position in original segment
+                orig_rel_start = (w["start"] - highlight["start"]) / (highlight["end"] - highlight["start"])
+                orig_rel_end = (w["end"] - highlight["start"]) / (highlight["end"] - highlight["start"])
+
+                # Map to new timeline
+                new_start = timeline["start"] + (orig_rel_start * (timeline["effective_end"] - timeline["start"]))
+                new_end = timeline["start"] + (orig_rel_end * (timeline["effective_end"] - timeline["start"]))
+
+                # Handle crossfade regions
+                if timeline["crossfade_start"] is not None and new_end > timeline["crossfade_start"]:
+                    # Word extends into crossfade region
+                    if new_start < timeline["crossfade_start"]:
+                        # Word starts before crossfade
+                        crossfade_portion = (new_end - timeline["crossfade_start"]) / crossfade_duration
+                        new_end = timeline["crossfade_start"] + (crossfade_portion * crossfade_duration * 0.5)
+                    else:
+                        # Word entirely in crossfade
+                        relative_pos = (new_start - timeline["crossfade_start"]) / crossfade_duration
+                        compression = 0.8 - (relative_pos * 0.3)  # Gradually decrease duration
+                        word_duration = new_end - new_start
+                        new_duration = word_duration * compression
+                        new_start = timeline["crossfade_start"] + (relative_pos * crossfade_duration)
+                        new_end = new_start + new_duration
+
+                matched_words.append({
+                    "text": w["text"],
+                    "start": round(new_start, 3),
+                    "end": round(new_end, 3),
+                })
+
+        matched_words.sort(key=lambda x: x["start"])
+        clipped_words = [w for w in matched_words if w["end"] <= timeline["effective_end"]]
+
         subsegments, id_counter = chunk_into_subsegments(
             clipped_words,
-            overall_start=offset,
-            overall_end=local_end,
+            overall_start=timeline["start"],
+            overall_end=timeline["effective_end"],
             segment_id_start=id_counter,
             max_chars=40,
             max_lines=2,
@@ -869,12 +1079,15 @@ def main():
     3) Load transcript.
     4) Generate highlights and trim audio if --duration is specified.
     5) Generate ASS subtitles.
-    6) Generate (or reuse) waveform.
-    7) Overlay waveform and title.
+    6) Generate (or reuse) waveform (unless waveform_height=0).
+    7) Overlay waveform (if enabled) and title.
     8) Burn final subtitles.
     """
     args = parse_arguments()
-    os.makedirs(args.temp_dir, exist_ok=True)
+    cache_manager = CacheManager(args.temp_dir)
+    
+    # Clean up old cache files (older than 7 days)
+    cache_manager.cleanup_old_cache(7)
 
     if not args.video_input and not (args.audio and args.background):
         raise ValueError("Either --video_input OR both --audio and --background must be provided")
@@ -882,7 +1095,7 @@ def main():
     # Use video input: extract audio or reuse cached version
     if args.video_input:
         print("Using video input file for karaoke processing. Extracting audio...")
-        cached_audio = get_cached_file(args.temp_dir, "extracted_audio.m4a", args.video_input)
+        cached_audio = cache_manager.get_cached_file("extracted_audio.m4a", args.video_input)
         if cached_audio:
             print("Using cached extracted audio file")
             audio_path = cached_audio
@@ -898,8 +1111,11 @@ def main():
                 extracted_audio_path
             ]
             run_ffmpeg_command(cmd, "Extracting audio from video input")
-            save_file_hash(args.video_input, args.temp_dir, "extracted_audio.m4a")
-            audio_path = extracted_audio_path
+            if cache_manager.save_file_hash(args.video_input, "extracted_audio.m4a"):
+                audio_path = extracted_audio_path
+            else:
+                print("Warning: Failed to save cache hash for extracted audio")
+                audio_path = extracted_audio_path
         background_path = args.video_input
     else:
         audio_path = args.audio
@@ -933,21 +1149,29 @@ def main():
                 json.dump(highlight_data, f)
 
         highlight_hash = hashlib.sha256(json.dumps(highlight_data, sort_keys=True).encode()).hexdigest()[:16]
-        cached_trimmed = get_cached_file(args.temp_dir, f"trimmed_audio_{highlight_hash}.m4a", audio_path)
+        trimmed_cache_key = f"trimmed_audio_{highlight_hash}.m4a"
+        cached_trimmed = cache_manager.get_cached_file(trimmed_cache_key, audio_path)
         if cached_trimmed:
             print("Using cached trimmed audio file")
             trimmed_audio_path = cached_trimmed
         else:
-            trimmed_audio_path = os.path.join(args.temp_dir, f"trimmed_audio_{highlight_hash}.m4a")
+            trimmed_audio_path = os.path.join(args.temp_dir, trimmed_cache_key)
+            trimmed_video_path = os.path.join(args.temp_dir, f"trimmed_video_{highlight_hash}.mp4")
             trim_audio_segments(
-                audio_path=audio_path,
+                input_path=args.video_input if args.video_input else audio_path,
                 highlights_data=highlight_data,
-                output_path=trimmed_audio_path,
+                audio_output_path=trimmed_audio_path,
+                video_output_path=trimmed_video_path if args.video_input else None,
                 crossfade_duration=args.crossfade_duration,
             )
-            save_file_hash(audio_path, args.temp_dir, f"trimmed_audio_{highlight_hash}.m4a")
+            if cache_manager.save_file_hash(audio_path, trimmed_cache_key):
+                print("Cached trimmed audio file")
+            else:
+                print("Warning: Failed to save cache hash for trimmed audio")
         final_segments_for_ass = realign_transcript(original_segments, highlight_data, crossfade_duration=args.crossfade_duration)
         audio_path = trimmed_audio_path
+        if args.video_input:
+            background_path = trimmed_video_path
     else:
         print("Using full audio (no highlight trimming).")
         final_segments_for_ass = original_segments
@@ -964,35 +1188,74 @@ def main():
         font_size=50,
     )
 
-    cached_waveform = get_cached_file(args.temp_dir, "waveform.mp4", audio_path)
-    if cached_waveform and os.path.getsize(cached_waveform) > 0:
-        print("Using cached waveform file")
-        waveform_path = cached_waveform
-    else:
-        generate_waveform(
-            audio_path=audio_path,
-            waveform_path=waveform_path,
-            duration=args.duration,
-            width=args.video_width,
-            height=args.waveform_height,
-            fps=args.waveform_fps,
-        )
-        if os.path.exists(waveform_path) and os.path.getsize(waveform_path) > 0:
-            save_file_hash(audio_path, args.temp_dir, "waveform.mp4")
+    # Skip waveform generation if height is 0
+    if args.waveform_height > 0:
+        cached_waveform = cache_manager.get_cached_file("waveform.mp4", audio_path)
+        if cached_waveform:
+            print("Using cached waveform file")
+            waveform_path = cached_waveform
         else:
-            print("Warning: Waveform generation may have failed")
-
-    overlay_waveform_and_title(
-        background_path=background_path,
-        waveform_path=waveform_path,
-        intermediate_video_path=intermediate_video_path,
-        title_text=args.title,
-        font_file=args.font_file,
-        video_width=args.video_width,
-        video_height=args.video_height,
-        waveform_height=args.waveform_height,
-        duration=args.duration,
-    )
+            generate_waveform(
+                audio_path=audio_path,
+                waveform_path=waveform_path,
+                duration=args.duration,
+                width=args.video_width,
+                height=args.waveform_height,
+                fps=args.waveform_fps,
+            )
+            if os.path.exists(waveform_path) and os.path.getsize(waveform_path) > 0:
+                if cache_manager.save_file_hash(audio_path, "waveform.mp4"):
+                    print("Cached waveform file")
+                else:
+                    print("Warning: Failed to save cache hash for waveform")
+            else:
+                print("Warning: Waveform generation may have failed")
+        
+        # Overlay waveform and title
+        overlay_waveform_and_title(
+            background_path=background_path,
+            waveform_path=waveform_path,
+            intermediate_video_path=intermediate_video_path,
+            title_text=args.title,
+            font_file=args.font_file,
+            video_width=args.video_width,
+            video_height=args.video_height,
+            waveform_height=args.waveform_height,
+            duration=args.duration,
+        )
+    else:
+        print("\nSkipping waveform generation (height=0)")
+        # Just add title without waveform
+        filter_complex = (
+            f"[0:v]scale={args.video_width}:{args.video_height}[bg];"
+            f"[bg]drawtext="
+            f"fontfile='{args.font_file}':"
+            f"text='{wrap_text(args.title, max_width=36)}':"
+            "text_align=center:"
+            "fontcolor=white:"
+            "fontsize=50:"
+            "shadowx=2:"
+            "shadowy=2:"
+            "box=1:"
+            "boxcolor=black@0.3:"
+            "boxborderw=10:"
+            "line_spacing=5:"
+            "x=(w/2-text_w/2):"
+            "y=(h/8)"
+        )
+        
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", background_path,
+            "-filter_complex", filter_complex,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+        ]
+        if args.duration is not None:
+            cmd += ["-t", str(args.duration)]
+        cmd.append(intermediate_video_path)
+        run_ffmpeg_command(cmd, "Adding title without waveform")
 
     add_karaoke_subtitles(
         intermediate_video_path=intermediate_video_path,
