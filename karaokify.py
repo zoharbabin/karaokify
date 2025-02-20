@@ -674,10 +674,17 @@ def realign_transcript(original_segments, highlight_data, crossfade_duration=1.0
         notice_id = id_counter
         id_counter += 1
         title_text = highlight.get("segment_title", f"Highlight #{i+1}")
+        # Create chapter title segment with guaranteed valid duration
+        notice_start = round(timeline["start"], 2)
+        notice_end = round(min(notice_start + 3, timeline["effective_end"] - 1), 2)
+        if notice_end <= notice_start:
+            # If the highlight is too short, at least show it for 1 second
+            notice_end = notice_start + 1.0
+
         highlight_notice_seg = {
             "id": notice_id,
-            "start": round(timeline["start"], 2),
-            "end": round(min(timeline["start"] + 3, timeline["effective_end"] - 2), 2),
+            "start": notice_start,
+            "end": notice_end,
             "text": f"- {title_text} -",
             "words": [],
         }
@@ -765,14 +772,19 @@ def get_ttf_font_name(ttf_path):
 def assign_subtitle_layers(segments):
     """
     Assign each subtitle segment a layer to avoid on-screen overlap.
+    Chapter titles are positioned at the top like the main title.
     """
     segments_sorted = sorted(segments, key=lambda s: s["start"])
     active_layers = {}
     layer_by_id = {}
+
     for seg in segments_sorted:
         seg_id = seg["id"]
         seg_start = seg["start"]
         seg_end = seg["end"]
+        seg_text = seg["text"]
+
+        # Normal layering for regular subtitles
         for lyr_idx, lyr_end in list(active_layers.items()):
             if lyr_end <= seg_start:
                 del active_layers[lyr_idx]
@@ -781,8 +793,53 @@ def assign_subtitle_layers(segments):
             layer_index += 1
         layer_by_id[seg_id] = layer_index
         active_layers[layer_index] = seg_end
+
     return layer_by_id
 
+
+def generate_chapter_title(
+    seg_text,
+    start_time,
+    end_time,
+    video_width,
+    video_height,
+    chapter_font_size=60
+):
+    """
+    Generate an ASS subtitle line for a chapter title.
+    Positioned at the top of the screen with enhanced styling.
+    """
+    y_pos = int(video_height * 0.3)  # 30% from top
+    # Remove the formatting markers if they exist
+    clean_text = seg_text
+    if clean_text.startswith("- ") and clean_text.endswith(" -"):
+        clean_text = clean_text[2:-2].strip()  # Remove "- " and " -"
+        
+    return (
+        f"Dialogue: 0,{start_time},{end_time},ChapterStyle,,0,0,0,,"
+        f"{{\\an8\\pos({video_width/2},{y_pos})"
+        "\\fscx105\\fscy105\\bord2\\shad1\\blur0.5"
+        f"\\fad(300,300)}}- {clean_text} -"
+    )
+
+def generate_caption_line(
+    text,
+    start_time,
+    end_time,
+    x_pos,
+    y_pos,
+    layer,
+    style="WordStyle",
+    effects=""
+):
+    """
+    Generate an ASS subtitle line for a regular caption.
+    """
+    return (
+        f"Dialogue: {layer},{start_time},{end_time},"
+        f"{style},,0,0,0,,"
+        f"{{\\r\\pos({int(x_pos)},{int(y_pos)}){effects}}}{text}"
+    )
 
 def generate_ass(
     segments,
@@ -793,29 +850,29 @@ def generate_ass(
     font_size=48,
     max_line_width_ratio=0.9,
     line_spacing=60,
+    chapter_font_size=60
 ):
     """
     Generate an .ass subtitle file with karaoke word-level effects.
+    Handles main title, chapter titles, and captions separately.
     """
-    layer_by_id = assign_subtitle_layers(segments)
-    segment_layer_spacing = 1.3 * line_spacing
-    dummy_im = Image.new("RGB", (video_width, video_height), (0, 0, 0))
-    draw = ImageDraw.Draw(dummy_im)
+    # Setup font and measurements
     font_obj = ImageFont.truetype(font_file, size=font_size, encoding="unic")
     highlight_color = "&H00FFFF&"
     normal_color = "&H00F0F0F0&"
     highlight_fontadd = 6
+    max_line_width_px = video_width * max_line_width_ratio
+    baseline_y = int(video_height * 0.75)  # Base position for regular captions
+    segment_layer_spacing = line_spacing  # Spacing between caption layers
 
     def measure_word_width(text_str):
         left, top, right, bottom = font_obj.getbbox(text_str)
         return right - left
 
-    def seconds_to_ass_time(sec):
-        hh = int(sec // 3600)
-        mm = int((sec % 3600) // 60)
-        ss = sec % 60
-        return f"{hh}:{mm:02d}:{ss:05.2f}"
+    # Calculate subtitle layers
+    layer_by_id = assign_subtitle_layers(segments)
 
+    # Generate ASS header with styles
     internal_font_name = get_ttf_font_name(font_file)
 
     ass_header = (
@@ -832,15 +889,16 @@ def generate_ass(
         "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, "
         "MarginR, MarginV, Encoding\n"
         f"Style: WordStyle,{internal_font_name},{font_size},&H00F0F0F0,&HFFFFFF,"
-        "&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,1,7,0,0,0,1\n\n"
+        "&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,1,7,0,0,0,1\n"
+        f"Style: ChapterStyle,{internal_font_name},{chapter_font_size},&H00FFFFFF,&HFFFFFF,"
+        "&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,0,5,20,20,20,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
         "Effect, Text\n"
     )
 
+    # Process segments and generate dialogue lines
     dialogue_lines = []
-    max_line_width_px = video_width * max_line_width_ratio
-    baseline_y = int(video_height * 0.80)
 
     for seg in segments:
         seg_id = seg["id"]
@@ -853,10 +911,41 @@ def generate_ass(
         start_ass = seconds_to_ass_time(seg_start)
         end_ass = seconds_to_ass_time(seg_end)
 
-        # If no word-level data, try generating approximate karaoke timings.
+        # Handle chapter titles first
+        if seg_text.startswith("- ") and seg_text.endswith(" -"):
+            # Use helper function for chapter titles
+            line_str = generate_chapter_title(
+                seg_text=seg_text,
+                start_time=start_ass,
+                end_time=end_ass,
+                video_width=video_width,
+                video_height=video_height,
+                chapter_font_size=chapter_font_size
+            )
+            dialogue_lines.append(line_str)
+            continue
+
+        # For non-chapter text, handle word-level timing
         if not seg_words:
+            # Generate approximate word timings if not provided
             words = seg_text.split()
-            if len(words) > 1:
+            if len(words) == 1:
+                # Single word: display centered at bottom
+                x_center = video_width / 2
+                y_baseline = int(video_height * 0.90)
+                line_str = generate_caption_line(
+                    text=seg_text,
+                    start_time=start_ass,
+                    end_time=end_ass,
+                    x_pos=x_center,
+                    y_pos=y_baseline,
+                    layer=this_layer,
+                    effects="\\an5"  # Center alignment for single words
+                )
+                dialogue_lines.append(line_str)
+                continue
+            else:
+                # Generate timing for multi-word segments
                 total_duration = seg_end - seg_start
                 word_duration = total_duration / len(words)
                 seg_words = []
@@ -868,17 +957,8 @@ def generate_ass(
                         "end": current_time + word_duration,
                     })
                     current_time += word_duration
-            else:
-                # Single word: display static centered text.
-                left, top, right, bottom = font_obj.getbbox(seg_text)
-                x_center = video_width / 2
-                y_baseline = int(video_height * 0.30)
-                piece = f"{{\\r\\an5\\pos({x_center},{y_baseline})}}{seg_text}"
-                line_str = f"Dialogue: 0,{start_ass},{end_ass},WordStyle,,0,0,0,,{piece}"
-                dialogue_lines.append(line_str)
-                continue
 
-        # Karaoke approach with word-level times
+        # Process words with karaoke timing
         current_line = []
         current_width = 0
         space_px = 6
@@ -924,14 +1004,23 @@ def generate_ass(
             line_y = segment_base_y + line_idx * line_spacing
             x_cursor = line_x
             for wd in line_words:
-                piece = (
-                    f"{{\\r\\pos({int(x_cursor)},{int(line_y)})"
+                # Generate karaoke effects for each word
+                effects = (
                     f"\\t({wd['start_ms']},{wd['end_ms']},"
                     f"\\c&H{highlight_color[2:-1]}&\\fs{font_size + highlight_fontadd})"
                     f"\\t({wd['end_ms']},{wd['end_ms']+1},"
-                    f"\\c&H{normal_color[2:-1]}&\\fs{font_size})}}{wd['text']}"
+                    f"\\c&H{normal_color[2:-1]}&\\fs{font_size})"
                 )
-                line_str = f"Dialogue: 0,{start_ass},{end_ass},WordStyle,,0,0,0,,{piece}"
+                # Use caption helper for each word
+                line_str = generate_caption_line(
+                    text=wd['text'],
+                    start_time=start_ass,
+                    end_time=end_ass,
+                    x_pos=x_cursor,
+                    y_pos=line_y,
+                    layer=this_layer,
+                    effects=effects
+                )
                 dialogue_lines.append(line_str)
                 x_cursor += wd["width"] + space_px
 
